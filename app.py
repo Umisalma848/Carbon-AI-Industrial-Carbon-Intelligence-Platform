@@ -1,741 +1,492 @@
-import os
-import time
-import joblib
-import numpy as np
+﻿import streamlit as st
 import pandas as pd
-import streamlit as st
-import plotly.graph_objects as go
+import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
+import joblib
+from pathlib import Path
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+MODELS_DIR = BASE_DIR / "models"
+
 st.set_page_config(
-    page_title="CarbonAI Dashboard",
+    page_title="CarbonAI — Industrial Carbon Intelligence Platform",
     page_icon="🌍",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
-# =========================================================
-# CUSTOM CSS
-# =========================================================
-st.markdown("""
+
+# --------- Theme and layout ---------
+DARK_CSS = """
 <style>
-
-/* MAIN BACKGROUND */
-.main {
-    background-color: #f6fbf8;
+body {
+    background-color: #06152a;
+    color: #e8f6ff;
 }
-
-/* GLOBAL TEXT FIX (IMPORTANT) */
-html, body, [class*="css"] {
-    color: #064e3b !important;
+.sidebar .sidebar-content {
+    background: linear-gradient(180deg, #052038 0%, #0b2e4a 100%);
+    border-right: 1px solid rgba(96, 165, 250, 0.18);
 }
-
-/* HEADINGS */
-h1, h2, h3, h4 {
-    color: #064e3b !important;
+.stApp {
+    background: linear-gradient(180deg, #06152a 0%, #0d3551 100%);
 }
-
-/* HERO CARD */
-.hero-card {
-    background: linear-gradient(135deg, #065f46, #16a34a);
-    padding: 1.4rem 1.6rem;
-    border-radius: 18px;
-    color: #064e3b;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+section.main {
+    background-color: transparent;
 }
-
-/* METRIC CARDS */
-.metric-card {
-    background: white;
-    padding: 1rem;
-    border-radius: 16px;
-    border: 1px solid #d1fae5;
-    color: #991b1b;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+div[data-testid='metric-container'] {
+    background: rgba(8, 24, 42, 0.94) !important;
+    border: 1px solid rgba(56, 189, 248, 0.18) !important;
+    border-radius: 20px !important;
+    padding: 18px !important;
+    box-shadow: 0 18px 40px rgba(8, 24, 42, 0.35) !important;
 }
-
-/* AI RECOMMENDATION CARD */
-.recommend-card {
-    background: #ecfdf5;
-    border: 1px solid #4ade80;
-    padding: 1.2rem;
-    border-radius: 16px;
-    color: #065b46;
-    font-weight: 500;
-}
-
-/* INSIGHT BOX */
-.insight-card {
-    background: #f0fdf4;
-    border-left: 6px solid #22c55e;
-    padding: 1rem;
-    border-radius: 12px;
-    color: #064e3b;
-}
-
-/* RISK BADGES */
-.risk-low {
-    background: #dcfce7;
-    color: #166534;
-    padding: 0.4rem 0.8rem;
-    border-radius: 999px;
-    font-weight: bold;
-}
-
-.risk-medium {
-    background: #fef9c3;
-    color: #854d0e;
-    padding: 0.4rem 0.8rem;
-    border-radius: 999px;
-    font-weight: bold;
-}
-
-.risk-high {
-    background: #fee2e2;
-    color: #991b1b;
-    padding: 0.4rem 0.8rem;
-    border-radius: 999px;
-    font-weight: bold;
-}
-
-/* SECTION TITLES */
-.section-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #064e3b;
-    margin-top: 1rem;
-}
-
-/* METRIC COMPONENT FIX */
-div[data-testid="stMetric"] {
-    background: white;
-    border: 1px solid #d1fae5;
-    padding: 0.8rem;
-    border-radius: 16px;
-    color: #90EE90 !important;
-}
-
-/* SIDEBAR TEXT */
-section[data-testid="stSidebar"] {
-    color: #90EE90 !important;
-}
-
-/* BUTTON */
-.stButton button {
-    background-color: #16a34a;
-    color: white;
-    border-radius: 10px;
-    border: none;
+.stButton>button {
+    background-color: #22c55e !important;
+    color: #020617 !important;
+    border-radius: 12px !important;
+    padding: 0.75rem 1.4rem !important;
     font-weight: 600;
 }
-
-.stButton button:hover {
-    background-color: #15803d;
+.stButton>button:hover {
+    background-color: #0f766e !important;
 }
-
-/* =========================================================
-   TEXT VISIBILITY FIXES FOR CARDS
-   ========================================================= */
-
-/* Metric card labels */
-div[data-testid="stMetricLabel"] p {
-    color: #1e293b  !important;
-    opacity: 1 !important;
-    font-weight: 600 !important;
+.stTextInput>div>div>input,
+.stNumberInput>div>div>input,
+.stSelectbox>div>div>div>div,
+.stSlider>div>div>input {
+    background-color: #0a1c32 !important;
+    color: #e8f6ff !important;
+    border: 1px solid rgba(56, 189, 248, 0.18) !important;
 }
-
-/* Metric card values */
-div[data-testid="stMetricValue"] {
-    color: #1e293b !important;
-    opacity: 1 !important;
-    font-weight: 700 !important;
+.css-1d391kg,
+.css-1lsmho7,
+.css-1offfwp {
+    background-color: rgba(10, 23, 40, 0.95) !important;
 }
-
-/* Metric delta text */
-div[data-testid="stMetricDelta"] {
-    color: #16a34a !important;
-    opacity: 1 !important;
-    font-weight: 600 !important;
+.stApp .css-1d391kg, .stApp .css-1lsmho7 {
+    border-radius: 20px;
 }
-
-/* Force text inside custom cards */
-.metric-card, .metric-card * {
-    color: #475569 !important;
-    opacity: 1 !important;
+h1, h2, h3, h4, h5, h6 {
+    color: #f8fafc;
 }
-
-.insight-card, .insight-card * {
-    color: #064e3b !important;
-    opacity: 1 !important;
-}
-
-.recommend-card, .recommend-card * {
-    color: #065f46 !important;
-    opacity: 1 !important;
-}
-
-/* Keep hero subtitle readable */
-.hero-card p {
-    color: #ecfdf5 !important;
-    opacity: 1 !important;
-}
-
-/* Keep hero title readable */
-.hero-card h1 {
-    color: #ecfdf5 !important;
-    opacity: 1 !important;
-}
-
-/* Section titles */
-.section-title {
-    color: #065f46 !important;
-    opacity: 1 !important;
-}
-
-/* CHANGE METRIC HEADING COLOR */
-div[data-testid="stMetricLabel"] {
-    color: #16a34a !important;   /* change this color */
-    font-weight: 600 !important;
-}
-
-/* Optional: make it slightly darker */
-div[data-testid="stMetricLabel"] p {
-    color: #065f46 !important;
-}
-
-
-/* Metric headings (Current Emissions, etc.) */
-div[data-testid="stMetricLabel"] {
-    color: #6b7280 !important;   /* GREY */ 
-    font-weight: 700 !important;
-    opacity: 1 !important;
-}
-
-/* Inner text */
-div[data-testid="stMetricLabel"] p {
-    color: #6b7280 !important;   /* ✅ GREY */
-}
-    opacity: 1 !important;
-}
-
-/* Metric values (numbers) */
-div[data-testid="stMetricLabel"] p {
-    color: #6b7280 !important;   /* ✅ GREY */
-}
-    font-weight: 700 !important;
-    opacity: 1 !important;
-}
-
-/* Delta */
-div[data-testid="stMetricLabel"] p {
-    color: #6b7280 !important;   /* ✅ GREY */
-}
-    font-weight: 600 !important;
-    opacity: 1 !important;
-}
-
-/* REMOVE FADED EFFECT */
-div[data-testid="stMetricLabel"] p {
-    color: #6b7280 !important;
-    opacity: 1 !important;
+span[data-testid='stMarkdownContainer'] p {
+    color: #cbd5e1;
 }
 </style>
-""", unsafe_allow_html=True)
+"""
 
-# =========================================================
-# LOAD MODELS
-# =========================================================
+st.markdown(DARK_CSS, unsafe_allow_html=True)
+
+# --------- Data loading ---------
+@st.cache_data(show_spinner=False)
+def load_emission_data() -> pd.DataFrame:
+    path = DATA_DIR / "carbon_emission_dataset_with_Industry.csv"
+    df = pd.read_csv(path, parse_dates=["Date"])
+    df["Renewable_Share"] = np.round((df["Renewable_Energy_Consumption_kWh"] / df["Total_Energy_Consumption_kWh"]) * 100, 1)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def load_country_data() -> pd.DataFrame:
+    path = DATA_DIR / "co2_emissions_kt_by_country.csv"
+    df = pd.read_csv(path)
+    return df.dropna(subset=["value"])
+
+
 @st.cache_resource
-def load_models():
-    country_model = None
-    industry_model = None
-
-    if os.path.exists("country_co2_model.joblib"):
-        country_model = joblib.load("country_co2_model.joblib")
-
-    if os.path.exists("carbon_emission_model.joblib"):
-        industry_model = joblib.load("carbon_emission_model.joblib")
-
-    return country_model, industry_model
-
-
-country_model, industry_model = load_models()
-
-# =========================================================
-# HELPERS
-# =========================================================
-def calculate_policy_reduction(ev, renewable, efficiency, carbon_tax, coal_to_solar):
-    """
-    Dummy policy logic for UI simulation.
-    You can replace this with real model logic later.
-    """
-    reduction = (
-        ev * 0.10 +
-        renewable * 0.28 +
-        efficiency * 0.18 +
-        carbon_tax * 0.12 +
-        coal_to_solar * 0.22
-    ) / 100.0
-
-    reduction = min(max(reduction, 0.03), 0.65)
-    return reduction
-
-
-def get_risk_level(predicted_2030):
-    if predicted_2030 < 250:
-        return "Low", "risk-low"
-    elif predicted_2030 < 500:
-        return "Medium", "risk-medium"
-    return "High", "risk-high"
-
-
-def build_forecast_series(current_emission, reduction_factor, start_year, end_year):
-    years_hist = list(range(start_year, 2024))
-    if len(years_hist) == 0:
-        years_hist = [2020, 2021, 2022, 2023]
-
-    # historical synthetic series
-    hist_vals = []
-    base_seed = current_emission * 0.82
-    step = (current_emission - base_seed) / max(len(years_hist) - 1, 1)
-
-    for i, _ in enumerate(years_hist):
-        val = base_seed + i * step + np.sin(i) * 5
-        hist_vals.append(max(val, 0))
-
-    years_forecast = list(range(2024, end_year + 1))
-    baseline_vals = []
-    scenario_vals = []
-
-    base = current_emission
-    scenario = current_emission
-
-    for i, y in enumerate(years_forecast, start=1):
-        baseline_growth = 1.015
-        scenario_growth = 1.015 - (reduction_factor * 0.10)
-
-        base = base * baseline_growth
-        scenario = scenario * max(scenario_growth, 0.90)
-
-        baseline_vals.append(base)
-        scenario_vals.append(scenario)
-
-    return years_hist, hist_vals, years_forecast, baseline_vals, scenario_vals
-
-
-def predict_country_emission(region, end_year, reduction_factor):
-    """
-    Uses country model if available, else simulated baseline.
-    """
-    # base feature values for country model
-    year = end_year
-    lag_1 = 420.0
-    lag_2 = 405.0
-    lag_3 = 390.0
-    rolling_mean_3 = np.mean([lag_1, lag_2, lag_3])
-
-    region_factor_map = {
-        "India": 1.35,
-        "United States": 1.25,
-        "China": 1.50,
-        "Germany": 0.80,
-        "Brazil": 0.78,
-        "United Kingdom": 0.65,
-        "Japan": 0.90,
-        "Canada": 0.75
-    }
-    region_factor = region_factor_map.get(region, 1.0)
-
-    baseline_prediction = 430.0 * region_factor
-
-    if country_model is not None:
-        try:
-            input_df = pd.DataFrame([{
-                "year": year,
-                "lag_1": lag_1 * region_factor,
-                "lag_2": lag_2 * region_factor,
-                "lag_3": lag_3 * region_factor,
-                "rolling_mean_3": rolling_mean_3 * region_factor
-            }])
-            baseline_prediction = float(country_model.predict(input_df)[0])
-        except Exception:
-            pass
-
-    scenario_prediction = baseline_prediction * (1 - reduction_factor)
-    current_emission = baseline_prediction * 0.92
-
-    return current_emission, baseline_prediction, scenario_prediction
-
-
-def predict_sector_impacts(total_baseline, total_scenario, renewable, efficiency, ev):
-    transport_share = 0.28
-    energy_share = 0.34
-    industry_share = 0.24
-    residential_share = 0.14
-
-    baseline = {
-        "Transport": total_baseline * transport_share,
-        "Energy": total_baseline * energy_share,
-        "Industry": total_baseline * industry_share,
-        "Residential": total_baseline * residential_share
-    }
-
-    scenario = {
-        "Transport": baseline["Transport"] * (1 - ev / 180),
-        "Energy": baseline["Energy"] * (1 - renewable / 150),
-        "Industry": baseline["Industry"] * (1 - efficiency / 160),
-        "Residential": baseline["Residential"] * (1 - renewable / 250)
-    }
-
-    # rescale to match scenario total approximately
-    scale = total_scenario / max(sum(scenario.values()), 1e-6)
-    scenario = {k: v * scale for k, v in scenario.items()}
-
-    return baseline, scenario
-
-
-def best_policy_mix(ev, renewable, efficiency, carbon_tax, coal_to_solar):
-    weighted_scores = {
-        "EV Adoption": ev * 0.10,
-        "Renewable Energy": renewable * 0.28,
-        "Industrial Efficiency": efficiency * 0.18,
-        "Carbon Tax": carbon_tax * 0.12,
-        "Coal-to-Solar": coal_to_solar * 0.22,
-    }
-    sorted_policies = sorted(weighted_scores.items(), key=lambda x: x[1], reverse=True)
-    top_3 = [name for name, _ in sorted_policies[:3]]
-    return ", ".join(top_3)
-
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-st.sidebar.markdown("## 🌿 CarbonAI Controls")
-
-region = st.sidebar.selectbox(
-    "📍 Select Region",
-    ["India", "United States", "China", "Germany", "Brazil", "United Kingdom", "Japan", "Canada"]
-)
-
-year_range = st.sidebar.slider(
-    "📅 Year Range",
-    min_value=2015,
-    max_value=2035,
-    value=(2020, 2030)
-)
-
-st.sidebar.markdown("### 🛠 Policy Scenario Controls")
-
-ev_adoption = st.sidebar.slider("🚗 EV Adoption (%)", 0, 100, 35)
-renewable_energy = st.sidebar.slider("☀️ Renewable Energy (%)", 0, 100, 45)
-industrial_efficiency = st.sidebar.slider("🏭 Industrial Efficiency (%)", 0, 100, 30)
-carbon_tax = st.sidebar.slider("💰 Carbon Tax Level (%)", 0, 100, 25)
-coal_to_solar = st.sidebar.slider("🔄 Coal-to-Solar Transition (%)", 0, 100, 40)
-
-optimize_button = st.sidebar.button("🚀 Optimize Policy", use_container_width=True)
-
-st.sidebar.markdown("---")
-st.sidebar.caption("CarbonAI • Climate Policy Decision Engine")
-
-# =========================================================
-# COMPUTE SCENARIO
-# =========================================================
-if optimize_button:
-    with st.spinner("Running AI policy simulation..."):
-        time.sleep(1.4)
-
-reduction_factor = calculate_policy_reduction(
-    ev_adoption,
-    renewable_energy,
-    industrial_efficiency,
-    carbon_tax,
-    coal_to_solar
-)
-
-current_emissions, baseline_2030, scenario_2030 = predict_country_emission(
-    region=region,
-    end_year=year_range[1],
-    reduction_factor=reduction_factor
-)
-
-reduction_pct = ((baseline_2030 - scenario_2030) / baseline_2030) * 100 if baseline_2030 else 0
-risk_label, risk_class = get_risk_level(scenario_2030)
-
-years_hist, hist_vals, years_forecast, baseline_vals, scenario_vals = build_forecast_series(
-    current_emissions,
-    reduction_factor,
-    year_range[0],
-    year_range[1]
-)
-
-sector_baseline, sector_scenario = predict_sector_impacts(
-    baseline_2030,
-    scenario_2030,
-    renewable_energy,
-    industrial_efficiency,
-    ev_adoption
-)
-
-recommendation_mix = best_policy_mix(
-    ev_adoption,
-    renewable_energy,
-    industrial_efficiency,
-    carbon_tax,
-    coal_to_solar
-)
-
-time_to_impact = "2–4 years" if renewable_energy + coal_to_solar > 90 else "4–6 years"
-
-# =========================================================
-# HEADER
-# =========================================================
-st.markdown("""
-<div class="hero-card">
-    <h1 style="margin:0; font-size:2rem;">CarbonAI Dashboard</h1>
-    <p style="margin:0.35rem 0 0 0; font-size:1rem; opacity:0.95;">
-        AI-powered Climate Policy Intelligence
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# METRICS
-# =========================================================
-m1, m2, m3, m4 = st.columns(4)
-
-with m1:
-    st.metric("🌍 Current Emissions", f"{current_emissions:.1f} kt")
-
-with m2:
-    st.metric("📉 Predicted Emissions (2030)", f"{scenario_2030:.1f} kt", delta=f"-{abs(reduction_pct):.1f}%")
-
-with m3:
-    st.metric("✅ Reduction %", f"{reduction_pct:.1f}%")
-
-with m4:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div style="font-size:0.95rem; color:#475569; margin-bottom:0.4rem;">⚠️ Risk Level</div>
-        <div class="{risk_class}">{risk_label}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("")
-
-# =========================================================
-# KEY INSIGHT
-# =========================================================
-st.markdown(f"""
-<div class="insight-card">
-    <strong>💡 Key Insight:</strong>
-    Increasing renewable energy to <strong>{renewable_energy}%</strong> and coal-to-solar transition to
-    <strong>{coal_to_solar}%</strong> reduces projected emissions in <strong>{region}</strong> by
-    approximately <strong>{reduction_pct:.1f}%</strong> under this scenario.
-</div>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# EMISSIONS FORECAST
-# =========================================================
-st.markdown('<div class="section-title">📈 Emissions Forecast</div>', unsafe_allow_html=True)
-
-forecast_fig = go.Figure()
-
-forecast_fig.add_trace(go.Scatter(
-    x=years_hist,
-    y=hist_vals,
-    mode="lines+markers",
-    name="Historical Emissions",
-    line=dict(color="#0f766e", width=3)
-))
-
-forecast_fig.add_trace(go.Scatter(
-    x=years_forecast,
-    y=baseline_vals,
-    mode="lines+markers",
-    name="Baseline Forecast",
-    line=dict(color="#486d9f", width=3, dash="dash")
-))
-
-forecast_fig.add_trace(go.Scatter(
-    x=years_forecast,
-    y=scenario_vals,
-    mode="lines+markers",
-    name="Policy-adjusted Forecast",
-    line=dict(color="#16a34a", width=4)
-))
-
-forecast_fig.update_layout(
-    height=420,
-    margin=dict(l=10, r=10, t=20, b=10),
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    font=dict(color="#1e293b", size=14),
-    legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="left",
-        x=0,
-        font=dict(color="#334155", size=12)
-    ),
-    xaxis=dict(
-        title="Year",
-        title_font=dict(color="#1e293b"),
-        tickfont=dict(color="#475569")
-    ),
-    yaxis=dict(
-        title="Emissions (kt)",
-        title_font=dict(color="#1e293b"),
-        tickfont=dict(color="#475569")
+def load_model(path: Path):
+    try:
+        return joblib.load(path)
+    except Exception as error:
+        return None
+
+
+emission_df = load_emission_data()
+country_df = load_country_data()
+carbon_model = load_model(MODELS_DIR / "carbon_model.joblib")
+forecast_model = load_model(MODELS_DIR / "country_forecast.joblib")
+
+# --------- Helper functions ---------
+
+def risk_level(prediction: float) -> tuple[str, str]:
+    if prediction < 20:
+        return "Low Risk", "🟢"
+    if prediction < 40:
+        return "Medium Risk", "🟡"
+    return "High Risk", "🔴"
+
+
+def sustainability_score(efficiency: float, renewable_share: float, nonrenewable: float) -> int:
+    score = efficiency * 0.4 + renewable_share * 0.4 - (nonrenewable / 100) * 0.2
+    return int(np.clip(score, 0, 100))
+
+
+def generate_recommendations(renewable: float, efficiency: float, transport_km: float, transport_mode: str) -> list[str]:
+    suggestions = []
+    if renewable < 0.35:
+        suggestions.append("Increase renewable energy generation by shifting to solar or wind.")
+    if efficiency < 75:
+        suggestions.append("Enhance process efficiency across the plant.")
+    if transport_km > 1200:
+        suggestions.append("Shorten transport routes and optimize logistics.")
+    if transport_mode in ["Air", "Ship"]:
+        suggestions.append("Switch to lower-carbon logistics such as rail or electric vehicles.")
+    return suggestions
+
+
+def plotly_dark_layout(fig: go.Figure):
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0b1120",
+        plot_bgcolor="#081127",
+        font_color="#e2e8f0",
+        margin=dict(l=0, r=0, t=40, b=20),
+        legend=dict(font=dict(color="#cbd5e1")),
+        title_font=dict(color="#f8fafc", size=18),
     )
-)
+    return fig
 
-st.plotly_chart(forecast_fig, use_container_width=True)
 
-# =========================================================
-# COMPARISON + SECTOR IMPACT
-# =========================================================
-left_col, right_col = st.columns([1.15, 1])
+def display_metrics():
+    total_records = len(emission_df)
+    unique_companies = emission_df["Company_ID"].nunique()
+    sectors = emission_df["Sector"].nunique()
+    avg_emission = emission_df["Carbon_Emission_tCO2e_TARGET"].mean()
+    renewable_share = emission_df["Renewable_Share"].mean()
 
-with left_col:
-    st.markdown('<div class="section-title">📊 Policy Impact Comparison</div>', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4, gap="large")
+    col1.metric("Records", f"{total_records:,}")
+    col2.metric("Companies", f"{unique_companies}")
+    col3.metric("Sectors", f"{sectors}")
+    col4.metric("Avg Emission", f"{avg_emission:.2f} tCO₂e")
 
-    compare_df = pd.DataFrame({
-        "Scenario": ["Baseline 2030", "Policy Scenario 2030"],
-        "Emissions": [baseline_2030, scenario_2030]
-    })
+    st.markdown("---")
+    c1, c2, c3 = st.columns(3, gap="large")
+    c1.metric("Renewable Share", f"{renewable_share:.1f}%")
+    c2.metric("Mean Efficiency", f"{emission_df['Process_Efficiency_Percent'].mean():.1f}%")
+    c3.metric("Forecast Model", "Loaded" if forecast_model is not None else "Missing")
 
-    compare_fig = px.bar(
-        compare_df,
-        x="Scenario",
-        y="Emissions",
-        color="Scenario",
-        text="Emissions",
-        color_discrete_sequence=["#4b89df", "#16a34a"]
-    )
-    compare_fig.update_traces(texttemplate="%{text:.1f}", textposition="outside")
-    compare_fig.update_layout(
-        height=380,
-        showlegend=False,
-        margin=dict(l=10, r=10, t=20, b=10),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        font=dict(color="#1e293b", size=14),
-        xaxis=dict(
-            title_font=dict(color="#1e293b"),
-            tickfont=dict(color="#475569")
-        ),
-        yaxis=dict(
-            title="Emissions (kt)",
-            title_font=dict(color="#1e293b"),
-            tickfont=dict(color="#475569")
+
+# --------- Page renderers ---------
+
+def render_dashboard():
+    st.markdown("# CarbonAI — Industrial Carbon Intelligence Platform")
+    st.markdown("Operational carbon intelligence for industrial decarbonization, governance, and strategic planning.")
+
+    st.markdown("---")
+    hero_left, hero_right = st.columns([3, 1], gap="large")
+    with hero_left:
+        st.markdown("### Executive summary")
+        st.markdown(
+            "Carbon AI transforms industrial operations into measurable carbon performance. Use this platform to evaluate emissions by sector, model future scenarios, and identify decarbonization opportunities with confidence."
         )
-    )
-
-    st.plotly_chart(compare_fig, use_container_width=True)
-
-    st.info(f"Projected reduction compared to baseline: **{reduction_pct:.1f}%**")
-
-with right_col:
-    st.markdown('<div class="section-title">🏙 Sector-wise Impact</div>', unsafe_allow_html=True)
-
-    sector_df = pd.DataFrame({
-        "Sector": list(sector_scenario.keys()),
-        "Scenario Emissions": list(sector_scenario.values())
-    })
-
-    sector_fig = px.pie(
-        sector_df,
-        names="Sector",
-        values="Scenario Emissions",
-        hole=0.45,
-        color_discrete_sequence=["#16a34a", "#0f766e", "#65a30d", "#86efac"]
-    )
-    sector_fig.update_layout(
-        height=380,
-        margin=dict(l=10, r=10, t=20, b=10),
-        paper_bgcolor="white",
-        font=dict(color="#1e293b", size=14),
-        legend=dict(font=dict(color="#334155", size=12))
-    )
-    st.plotly_chart(sector_fig, use_container_width=True)
-
-# =========================================================
-# AI RECOMMENDATION + RISK
-# =========================================================
-col_a, col_b = st.columns([1.2, 0.8])
-
-with col_a:
-    st.markdown('<div class="section-title">🤖 AI Recommendation Panel</div>', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class="recommend-card">
-        <h4 style="margin-top:0;">Best policy mix</h4>
-        <p style="margin-bottom:0.5rem;">
-            <strong>{recommendation_mix}</strong>
-        </p>
-        <p style="margin:0.25rem 0;"><strong>Expected emission reduction:</strong> {reduction_pct:.1f}%</p>
-        <p style="margin:0.25rem 0;"><strong>Time to impact:</strong> {time_to_impact}</p>
-        <p style="margin:0.5rem 0 0 0;">
-            Recommendation prioritizes energy transition and structural efficiency for maximum regional effect.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col_b:
-    st.markdown('<div class="section-title">🚨 Region Risk Indicator</div>', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class="metric-card">
-        <p style="margin:0 0 0.6rem 0; color:#475569;">Region: <strong>{region}</strong></p>
-        <div class="{risk_class}">{risk_label} Risk</div>
-        <p style="margin-top:0.9rem; color:#475569;">
-            Risk is estimated from projected 2030 emissions under the selected policy scenario.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-# =========================================================
-# OPTIONAL MAP / PLACEHOLDER
-# =========================================================
-with st.expander("🗺 Region Emissions View"):
-    map_df = pd.DataFrame({
-        "Region": ["India", "United States", "China", "Germany", "Brazil", "United Kingdom", "Japan", "Canada"],
-        "Emissions": [520, 490, 610, 240, 260, 190, 310, 220]
-    })
-
-    map_fig = px.bar(
-        map_df,
-        x="Region",
-        y="Emissions",
-        color="Emissions",
-        color_continuous_scale="Greens"
-    )
-    map_fig.update_layout(
-        height=340,
-        margin=dict(l=10, r=10, t=10, b=10),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        font=dict(color="#1e293b", size=14),
-        xaxis=dict(
-            title_font=dict(color="#1e293b"),
-            tickfont=dict(color="#475569")
-        ),
-        yaxis=dict(
-            title_font=dict(color="#1e293b"),
-            tickfont=dict(color="#475569")
+        st.markdown(
+            "<div style='padding:18px; border-radius:20px; background: rgba(14, 28, 50, 0.85); border:1px solid rgba(148,163,184,0.12)'>"
+            "<p style='margin:0 0 8px; color:#7dd3fc; font-weight:700'>Current operating profile</p>"
+            "<p style='margin:2px 0 0; color:#e2e8f0;'>Integrated emissions model + country forecasting + recommendations</p>"
+            "</div>",
+            unsafe_allow_html=True,
         )
-    )
-    st.plotly_chart(map_fig, use_container_width=True)
-    st.caption("Map placeholder can be replaced with a real geo-visual later.")
+    with hero_right:
+        st.metric(label="Model health", value="Stable")
+        st.metric(label="Forecast horizon", value="2035")
+        st.metric(label="UI theme", value="Enterprise dark")
 
-# =========================================================
-# MODEL STATUS
-# =========================================================
-with st.expander("⚙️ Model Connection Status"):
-    st.write("This dashboard is designed to connect with your saved models.")
-    st.write(f"Country model loaded: {'Yes' if country_model is not None else 'No'}")
-    st.write(f"Industry model loaded: {'Yes' if industry_model is not None else 'No'}")
-    st.write("If a model is unavailable, the dashboard uses realistic simulation logic so the UI remains demo-ready.")
+    st.markdown("---")
+    display_metrics()
+
+    st.markdown("### Operational analytics")
+    hist_col, bar_col = st.columns(2, gap="large")
+    with hist_col:
+        fig = px.violin(
+            emission_df,
+            y="Renewable_Share",
+            title="Renewable energy share distribution",
+            color_discrete_sequence=["#22c55e"],
+            box=True,
+            points="all",
+        )
+        fig.update_yaxes(title_text="Renewable Share (%)")
+        plotly_dark_layout(fig)
+        st.plotly_chart(fig, use_container_width=True)
+    with bar_col:
+        sector_summary = (
+            emission_df.groupby("Sector")["Carbon_Emission_tCO2e_TARGET"].mean().sort_values(ascending=False).reset_index()
+        )
+        fig2 = px.bar(
+            sector_summary.head(10),
+            x="Carbon_Emission_tCO2e_TARGET",
+            y="Sector",
+            orientation="h",
+            title="Average emission by sector",
+            color="Carbon_Emission_tCO2e_TARGET",
+            color_continuous_scale=["#22c55e", "#38bdf8"],
+        )
+        plotly_dark_layout(fig2)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    st.markdown("### Key outcomes")
+    outcome_1, outcome_2, outcome_3 = st.columns(3, gap="large")
+    outcome_1.metric("Emission visibility", "Real-time insights")
+    outcome_2.metric("Risk scoring", "Operational readiness")
+    outcome_3.metric("Strategic planning", "Carbon reduction")
+
+
+
+def render_prediction():
+    st.markdown("# Predict Industrial Carbon Emissions")
+    st.markdown("Enter industry parameters below, then run the model to generate a carbon emission estimate and maturity score.")
+
+    with st.expander("Input guidance", expanded=True):
+        st.write(
+            "Use actual operational metrics where possible. The model is trained on industrial energy, transport, and process efficiency features to provide realistic carbon estimates."
+        )
+        st.markdown(
+            "- Choose a representative sector and transport mode.\n"
+            "- Keep renewable energy and efficiency values aligned with current operations.\n"
+            "- The prediction is designed for industrial sustainability planning and executive reporting."
+        )
+
+    left, right = st.columns([1, 1], gap="large")
+    with left:
+        st.subheader("Industry inputs")
+        sector = st.selectbox("Sector", sorted(emission_df["Sector"].unique()))
+        industry_sector = st.selectbox("Industry Sector", sorted(emission_df["Industry_Sectors"].unique()))
+        energy = st.number_input("Total Energy Consumption (kWh)", min_value=0.0, value=100000.0, step=500.0)
+        renewable = st.number_input("Renewable Energy (kWh)", min_value=0.0, value=40000.0, step=500.0)
+        nonrenewable = st.number_input("Non-Renewable Energy (kWh)", min_value=0.0, value=60000.0, step=500.0)
+    with right:
+        st.subheader("Operational inputs")
+        production = st.number_input("Production Output Units", min_value=0.0, value=5000.0, step=100.0)
+        transport_mode = st.selectbox("Transport Mode", sorted(emission_df["Supply_Chain_Transport_Mode"].unique()))
+        transport_km = st.number_input("Transport Distance (km)", min_value=0.0, value=1200.0, step=50.0)
+        efficiency = st.slider("Process Efficiency (%)", 0, 100, 72)
+        renewable_share = st.slider("Expected Renewable Share (%)", 0, 100, 36)
+        strategy = st.selectbox(
+            "Carbon Reduction Strategy",
+            sorted(emission_df["Carbon_Reduction_Strategy"].unique()),
+        )
+
+    st.markdown("---")
+    if st.button("Run prediction"):
+        if carbon_model is None:
+            st.error("Prediction model is unavailable. Please check the model files.")
+            return
+
+        input_df = pd.DataFrame(
+            {
+                "Sector": [sector],
+                "Total_Energy_Consumption_kWh": [energy],
+                "Renewable_Energy_Consumption_kWh": [renewable],
+                "NonRenewable_Energy_Consumption_kWh": [nonrenewable],
+                "Production_Output_Units": [production],
+                "Supply_Chain_Transport_km": [transport_km],
+                "Supply_Chain_Transport_Mode": [transport_mode],
+                "Raw_Material_Usage_kg": [nonrenewable * 0.9],
+                "Energy_Cost_USD": [energy * 0.05],
+                "Carbon_Tax_USD": [100],
+                "Process_Efficiency_Percent": [efficiency],
+                "Employment_Count": [1500],
+                "Public_Acceptance_Index": [75],
+                "Carbon_Reduction_Strategy": [strategy],
+                "Strategy_Implementation_Cost_USD": [200000],
+                "Expected_Carbon_Reduction_Percent": [renewable_share * 0.25],
+                "Expected_Renewable_Share_Percent": [renewable_share],
+                "Social_Impact_Score": [80],
+                "Industry_Sectors": [industry_sector],
+            }
+        )
+
+        predicted = carbon_model.predict(input_df)[0]
+        label, symbol = risk_level(predicted)
+        score = sustainability_score(efficiency, renewable_share, nonrenewable)
+        recommendations = generate_recommendations(renewable / energy if energy else 0, efficiency, transport_km, transport_mode)
+
+        st.markdown("### Prediction results")
+        cards = st.columns(3, gap="large")
+        cards[0].metric("Predicted Emission", f"{predicted:.2f} tCO₂e")
+        cards[1].metric("Carbon Risk", f"{symbol} {label}")
+        cards[2].metric("Sustainability Score", f"{score}/100")
+
+        st.markdown("### Recommended actions")
+        with st.expander("View recommended actions", expanded=True):
+            if recommendations:
+                for rec in recommendations:
+                    st.success(rec)
+            else:
+                st.info("This scenario is aligned with a low-risk carbon profile.")
+
+        gauge, chart = st.columns([1, 1], gap="large")
+        with gauge:
+            fig = go.Figure(
+                data=[go.Indicator(
+                    mode="gauge+number+delta",
+                    value=score,
+                    delta={'reference': 65, 'increasing': {'color': '#22c55e'}},
+                    gauge={
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': '#22c55e'},
+                        'bgcolor': '#0b1120',
+                    },
+                    title={'text': "Sustainability Index"},
+                )]
+            )
+            plotly_dark_layout(fig)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with chart:
+            trend_df = emission_df.groupby("Sector")["Carbon_Emission_tCO2e_TARGET"].mean().reset_index().sort_values(by="Carbon_Emission_tCO2e_TARGET", ascending=False)
+            fig2 = px.bar(
+                trend_df.head(8),
+                x="Carbon_Emission_tCO2e_TARGET",
+                y="Sector",
+                orientation="h",
+                title="Sector emission benchmark",
+                color="Carbon_Emission_tCO2e_TARGET",
+                color_continuous_scale=["#22c55e", "#38bdf8"],
+            )
+            plotly_dark_layout(fig2)
+            st.plotly_chart(fig2, use_container_width=True)
+
+
+def render_analytics():
+    st.markdown("# Global Carbon Analytics")
+    st.markdown("A premium analytics suite tracking global emissions and country-level performance.")
+
+    latest_year = int(country_df["year"].max())
+    latest_df = country_df[country_df["year"] == latest_year]
+    top10 = latest_df.nlargest(10, "value")
+
+    kpi1, kpi2, kpi3 = st.columns(3, gap="large")
+    kpi1.metric("Latest year", latest_year)
+    kpi2.metric("Top emitter", top10.iloc[0]["country_name"])
+    kpi3.metric("Global CO₂", f"{country_df['value'].sum():,.0f} kt")
+
+    st.markdown("---")
+    st.markdown("### Top emitters")
+    fig = px.bar(
+        top10,
+        x="country_name",
+        y="value",
+        color="value",
+        color_continuous_scale=["#22c55e", "#0ea5e9"],
+        title=f"Top 10 CO₂ Emitters ({latest_year})",
+    )
+    plotly_dark_layout(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    col1, col2 = st.columns(2, gap="large")
+    with col1:
+        country = st.selectbox("Country trend", ["India", "China", "United States", "Russia", "Japan"])
+        country_trend = country_df[country_df["country_name"] == country]
+        fig2 = px.line(country_trend, x="year", y="value", markers=True, color_discrete_sequence=["#38bdf8"], title=f"{country} CO₂ Emission Trend")
+        plotly_dark_layout(fig2)
+        st.plotly_chart(fig2, use_container_width=True)
+    with col2:
+        comparison = country_df[country_df["country_name"].isin(["India", "China"])]
+        fig3 = px.line(comparison, x="year", y="value", color="country_name", markers=True, color_discrete_sequence=["#22c55e", "#38bdf8"], title="India vs China")
+        plotly_dark_layout(fig3)
+        st.plotly_chart(fig3, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### Global trend")
+    total_by_year = country_df.groupby("year")["value"].sum().reset_index()
+    fig4 = px.area(total_by_year, x="year", y="value", title="Global CO₂ Emissions Over Time", color_discrete_sequence=["#22c55e"])
+    plotly_dark_layout(fig4)
+    st.plotly_chart(fig4, use_container_width=True)
+
+
+def render_forecast():
+    st.markdown("# Forecast & Strategy")
+    st.markdown("Generate future CO₂ emission scenarios and validate long-term decarbonization progress.")
+
+    if forecast_model is None:
+        st.error("Forecast model is unavailable. Please check the saved forecast model.")
+        return
+
+    year = st.slider("Forecast Year", 2026, 2035, 2030)
+    prediction = forecast_model.predict(pd.DataFrame({"year": [year]}))[0]
+
+    st.markdown("---")
+    st.markdown("### Forecast output")
+    st.metric("Forecasted CO₂ (kt)", f"{prediction:,.2f}")
+
+    projected_years = np.arange(2026, 2036)
+    future = pd.DataFrame({"year": projected_years})
+    future["forecast"] = forecast_model.predict(future)
+
+    fig = px.line(future, x="year", y="forecast", markers=True, title="Forecasted CO₂ Trend")
+    plotly_dark_layout(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Scenario summary")
+    st.write(
+        "This forecast uses the saved model to project emissions across the next decade. Use the results to align carbon targets with operational plans."
+    )
+
+    st.divider()
+    st.markdown("### Forecast details")
+    st.dataframe(future.style.format({"forecast": "{:.2f}"}))
+
+
+def render_about():
+    st.markdown("# About CarbonAI")
+    st.markdown(
+        "CarbonAI delivers enterprise-grade industrial carbon intelligence—combining predictive modeling, sector benchmarking, and actionable decarbonization guidance.")
+
+    st.markdown("### Problem Statement")
+    st.write(
+        "Industrial emissions are a leading contributor to climate risk, and organizations need a predictive carbon intelligence platform "
+        "for operations, strategy, and sustainability reporting."
+    )
+
+    st.markdown("### Business Value")
+    st.write(
+        "This platform converts operational metrics into actionable carbon forecasts, risk scores, and sustainability recommendations. "
+        "It is designed to support green investment decisions and corporate decarbonization programs."
+    )
+
+    st.markdown("### Architecture")
+    st.write(
+        "- CSV datasets provide real-world carbon emissions and industrial energy profiles.\n"
+        "- Scikit-Learn models deliver prediction and forecast outputs.\n"
+        "- Plotly charts enable interactive executive dashboards.\n"
+        "- Streamlit provides a modern SaaS UI with responsive layout and dark theme."
+    )
+
+    st.markdown("### Tech Stack")
+    st.write("Python, Streamlit, Pandas, NumPy, Plotly, Scikit-Learn, Joblib")
+
+    st.markdown("### Future Scope")
+    st.write(
+        "- Add multi-factor scenario planning and KPI targets.\n"
+        "- Extend global analytics with emissions intensity and sector benchmarking.\n"
+        "- Add user authentication, reports, and deployment to a cloud SaaS environment."
+    )
+
+
+def main():
+    st.sidebar.title("CarbonAI")
+    st.sidebar.markdown("Industrial Carbon Intelligence & Sustainability Analytics Suite")
+    page = st.sidebar.radio(
+        "Navigation",
+        ["Dashboard", "Prediction", "Analytics", "Forecast", "About"],
+        index=0,
+    )
+
+    if page == "Dashboard":
+        render_dashboard()
+    elif page == "Prediction":
+        render_prediction()
+    elif page == "Analytics":
+        render_analytics()
+    elif page == "Forecast":
+        render_forecast()
+    elif page == "About":
+        render_about()
+
+
+if __name__ == "__main__":
+    main()
