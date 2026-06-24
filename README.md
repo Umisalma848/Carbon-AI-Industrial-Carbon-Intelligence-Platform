@@ -3,6 +3,10 @@
 > Transforming industrial operational data into actionable carbon intelligence through Machine Learning, Analytics, and Sustainability Insights.
 
 ---
+🚀 Live Demo
+
+🌍 Carbon AI Dashboard
+[Deploy](https://carbon-ai-industrial-carbon-intelligence-platform-mcyncfxgfv8w.streamlit.app/)
 
 ## 📌 Overview
 
